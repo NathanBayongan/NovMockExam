@@ -1,0 +1,142 @@
+<?php // This opens the php code section for the code to be in php format
+
+function user_message(){
+
+    if (isset($_SESSION['usermessage'])) { // Checks if "usermessage" is set
+        $message = $_SESSION['usermessage'] . "</p>"; // styles "usermessage"
+        unset($_SESSION['usermessage']); // unsets to make it not exist anymore to save storage/ memory.
+        return $message; // returns message
+    } else {
+        $message = ""; // if condition isn't met, it returns blank
+        return $message;
+    }
+}
+
+
+function reg_customer($conn, $post){
+    try {
+        // prepare and execute the SQL query
+        $sql = "INSERT INTO customer (fname, sname, email, password) VALUES (?, ?, ?, ?)"; // prepares statement
+        $stmt = $conn->prepare($sql); // prepare to sql
+
+        $stmt->bindParam(1, $post['fname']); // bind parameters for security
+        $stmt->bindParam(2, $post['sname']);
+        $stmt->bindParam(3, $post['email']);
+        // hash the password
+        $hpswd = password_hash($post['password'], PASSWORD_DEFAULT); // has the password
+        // Using in built php library using default encryption because we have nothing else built into this code base
+        // In a business environment, it's better to use PASSWORD_BCRYPTb
+        $stmt->bindParam(4, $hpswd);
+
+        $stmt->execute(); // run the query to insert
+        $conn = null; // closes connection after use
+        return true; // registration successful
+    } catch (PDOException $e) {
+        // handles database errors
+        error_log("User Reg database error: " . $e->getMessage()); // logs the errors
+        throw new Exception("User reg database error: ", $e); // throws exception for calling script
+    } catch (Exception $e) {
+        error_log("User Registration error: " . $e->getMessage()); // logs the error
+        throw new Exception("User Registration error: ", $e); // throws exception
+    }
+}
+
+function login($conn, $post){
+
+    try{ // try this code, catch errors
+        $sql = "SELECT * FROM customer WHERE email = ?"; // set up sql statement
+        $stmt = $conn->prepare($sql); // prepares
+        $stmt->bindParam(1, $post['email']); // binds the parameters to execute
+        $stmt->execute(); // runs sql code
+        $result = $stmt->fetch(PDO::FETCH_ASSOC); // Brings back results
+        $conn = null; // Breaks off connection once it is used
+
+        if($result){ // If there is a result returned
+            return $result;
+
+        } else {
+            $SESSION['usermessage'] = "User not found";
+        }
+
+    } catch (Exception $e) {
+        $SESSION['Error'] = $e->getMessage();
+        throw new Exception("User Registration error: ", $e); // throws exception
+    }
+}
+
+function getnewuserid($conn, $email){
+
+    $sql = "SELECT customerid FROM customer WHERE email  = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(1, $email);
+    $stmt->execute();
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $result["user_id"];
+
+}
+
+function staff_grabber($conn){
+
+    $sql = "SELECT staffid, role, fname, sname, room FROM staff WHERE role != ? ORDER by role DESC";
+
+    $stmt = $conn->prepare($sql);
+    $exclude_role = "adm";
+
+    $stmt->bindParam(1, $exclude_role);
+
+    $stmt->execute();
+    $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $conn = null;
+    return $result;
+}
+
+function commit_booking($conn, $epoch){
+    $sql = "INSERT INTO booking (customerid, staffid, appointmentdate, bookingdate) VALUES (?, ?, ?, ?)";
+    $stmt = $conn->prepare($sql);
+    $time=time();
+    $stmt->bindParam(1, $_SESSION['customerid']);
+    $stmt->bindParam(2, $_POST['staff']);
+    $stmt->bindParam(3, $epoch);
+    $stmt->bindParam(4, $time);
+
+    $stmt->execute();
+    $conn = null;
+    return true;
+}
+
+function appt_grabber($conn){
+
+    $sql = "SELECT b.bookingid, b.appointmentdate, b.bookingdate, s.role, s.fname, s.sname, s.room FROM booking b JOIN staff s ON b.staffid = s.staffid WHERE b.customerid = ? ORDER by b.appointmentdate ASC";
+
+    $stmt = $conn->prepare($sql);
+
+    $stmt->bindParam(1, $_SESSION['user_id']);
+    $stmt->execute();
+    $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $conn = null;
+    if($result){
+        return $result;
+    } else {
+        return false;
+    }
+
+}
+
+function auditor($conn, $customertid, $code, $long){ // on doing any action, auditor is
+    $sql = "INSERT INTO audit (customerid, code, longdesc, date) VALUES (?, ?, ?, ?)";
+    $stmt = $conn->prepare($sql); // prepares the sql
+    $date = time(); // Y-m-d is the date orientation that php needs/accepts
+    $stmt->bindParam(1, $customerid); // bind parameters for security
+    $stmt->bindParam(2, $code);
+    $stmt->bindParam(3, $long);
+    $stmt->bindParam(4, $date);
+
+    $stmt->execute(); // run the query to insert
+    $conn = null; // closes the connection so it can't be abused
+    return true; // Registration successful
+}
+
+
+function carbcalc(){
+
+}
